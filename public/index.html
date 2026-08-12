@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>인스타 다운로더</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1c1c1e;
+    --muted: #6e6e73;
+    --accent: #d6249f;
+    --accent-grad: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    --border: #e5e5ea;
+    --error: #d70015;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e;
+      --card: #2c2c2e;
+      --text: #f5f5f7;
+      --muted: #a1a1a6;
+      --border: #3a3a3c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    padding: 24px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 28px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  p.sub {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  input[type="url"] {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+  }
+  input[type="url"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button {
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent-grad);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .status {
+    margin-top: 16px;
+    font-size: 14px;
+    min-height: 20px;
+  }
+  .status.error { color: var(--error); }
+  .status.ok { color: #248a3d; }
+  .preview {
+    display: none;
+    margin-top: 20px;
+  }
+  .preview.show { display: block; }
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .gallery.single {
+    grid-template-columns: 1fr;
+  }
+  .gallery-item {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .gallery-item img, .gallery-item video {
+    width: 100%;
+    display: block;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+  .gallery.single .gallery-item img,
+  .gallery.single .gallery-item video {
+    aspect-ratio: auto;
+  }
+  .gallery-item .badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 8px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .save-btn {
+    flex: 1;
+    background: var(--text);
+    color: var(--card);
+  }
+  .save-btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .hint {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>인스타 다운로더</h1>
+    <p class="sub">게시물 또는 릴스 링크를 붙여넣으면 사진·영상을 전부 받아옵니다.</p>
+    <form id="form">
+      <input type="url" id="url" placeholder="https://www.instagram.com/reel/..." required />
+      <button type="submit" id="submitBtn">다운로드</button>
+    </form>
+    <div class="status" id="status"></div>
+
+    <div class="preview" id="preview">
+      <div class="gallery" id="gallery"></div>
+      <div class="btn-row">
+        <button type="button" class="save-btn" id="shareSaveBtn">📱 전체 사진 앱에 저장</button>
+        <button type="button" class="save-btn secondary" id="fileSaveBtn">전체 파일로 저장</button>
+      </div>
+      <button type="button" class="save-btn secondary" id="notionSaveBtn" style="margin-top: 8px; width: 100%;">📝 캡션·본문 노션에 저장</button>
+      <p class="hint">아이폰/아이패드: "사진 앱에 저장"을 누르면 나오는 공유 시트에서 <b>"이미지 저장" / "비디오 저장"</b>을 선택하면 사진 앱에 한 번에 들어갑니다.<br>
+      또는 각 사진·영상을 <b>길게 눌러</b> "이미지 저장"을 선택해도 됩니다.</p>
+    </div>
+  </div>
+
+<script>
+  const form = document.getElementById('form');
+  const urlInput = document.getElementById('url');
+  const submitBtn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  const preview = document.getElementById('preview');
+  const gallery = document.getElementById('gallery');
+  const shareSaveBtn = document.getElementById('shareSaveBtn');
+  const fileSaveBtn = document.getElementById('fileSaveBtn');
+  const notionSaveBtn = document.getElementById('notionSaveBtn');
+
+  let currentFiles = [];
+  let currentObjectUrls = [];
+  let currentJobId = null;
+
+  function setStatus(text, cls) {
+    status.textContent = text;
+    status.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function cleanupPreview() {
+    currentObjectUrls.forEach((u) => URL.revokeObjectURL(u));
+    currentObjectUrls = [];
+    currentFiles = [];
+    gallery.innerHTML = '';
+    preview.classList.remove('show');
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = urlInput.value.trim();
+    setStatus('');
+    cleanupPreview();
+    submitBtn.disabled = true;
+    submitBtn.textContent = '분석 중...';
+
+    try {
+      const prepRes = await fetch('/api/prepare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ url })
+      });
+
+      const prepData = await prepRes.json().catch(() => ({}));
+      if (!prepRes.ok) {
+        throw new Error(prepData.error || `분석에 실패했습니다. (HTTP ${prepRes.status})`);
+      }
+
+      const { jobId, items } = prepData;
+      if (!items || items.length === 0) {
+        throw new Error('다운로드할 사진/영상을 찾지 못했습니다.');
+      }
+      currentJobId = jobId;
+
+      gallery.className = 'gallery' + (items.length === 1 ? ' single' : '');
+
+      for (let i = 0; i < items.length; i++) {
+        submitBtn.textContent = `받는 중... (${i + 1}/${items.length})`;
+        const item = items[i];
+        const fileRes = await fetch(`/api/file/${jobId}/${encodeURIComponent(item.filename)}`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (!fileRes.ok) continue;
+
+        const blob = await fileRes.blob();
+        if (!blob || blob.size === 0) continue;
+
+        const file = new File([blob], item.filename, { type: blob.type });
+        const objectUrl = URL.createObjectURL(blob);
+        currentFiles.push(file);
+        currentObjectUrls.push(objectUrl);
+
+        const cell = document.createElement('div');
+        cell.className = 'gallery-item';
+
+        const el = document.createElement(item.type === 'video' ? 'video' : 'img');
+        el.src = objectUrl;
+        if (item.type === 'video') {
+          el.controls = true;
+          el.playsInline = true;
+          el.muted = true;
+        } else {
+          el.alt = item.filename;
+        }
+        cell.appendChild(el);
+
+        if (items.length > 1) {
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = `${i + 1}/${items.length}`;
+          cell.appendChild(badge);
+        }
+
+        gallery.appendChild(cell);
+      }
+
+      if (currentFiles.length === 0) {
+        throw new Error('파일을 받아오지 못했습니다.');
+      }
+
+      preview.classList.add('show');
+      setStatus(`다운로드 완료! (${currentFiles.length}개) 아래에서 사진 앱에 저장하세요.`, 'ok');
+    } catch (err) {
+      setStatus('오류: ' + err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '다운로드';
+    }
+  });
+
+  shareSaveBtn.addEventListener('click', async () => {
+    if (currentFiles.length === 0) return;
+    if (navigator.canShare && navigator.canShare({ files: currentFiles })) {
+      try {
+        await navigator.share({ files: currentFiles });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setStatus('공유 시트를 열 수 없습니다. 각 이미지를 길게 눌러 저장해보세요.', 'error');
+        }
+      }
+    } else {
+      setStatus('이 브라우저는 한 번에 공유 저장을 지원하지 않습니다. 각 이미지·영상을 길게 눌러 저장해주세요.', 'error');
+    }
+  });
+
+  fileSaveBtn.addEventListener('click', () => {
+    currentFiles.forEach((file, i) => {
+      const link = document.createElement('a');
+      link.href = currentObjectUrls[i];
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
+  });
+
+  notionSaveBtn.addEventListener('click', async () => {
+    if (!currentJobId) return;
+    notionSaveBtn.disabled = true;
+    notionSaveBtn.textContent = '노션에 저장 중...';
+    try {
+      const res = await fetch('/api/notion-save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ jobId: currentJobId })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `노션 저장에 실패했습니다. (HTTP ${res.status})`);
+      }
+      setStatus('노션에 저장 완료!', 'ok');
+      if (data.url) window.open(data.url, '_blank');
+    } catch (err) {
+      setStatus('노션 저장 오류: ' + err.message, 'error');
+    } finally {
+      notionSaveBtn.disabled = false;
+      notionSaveBtn.textContent = '📝 캡션·본문 노션에 저장';
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "instagram-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal-use Instagram post/reel downloader (paste a link, get the file)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

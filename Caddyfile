@@ -1,0 +1,9 @@
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+tptkdtkfdl.tech, www.tptkdtkfdl.tech {
+	reverse_proxy localhost:3000
+}
