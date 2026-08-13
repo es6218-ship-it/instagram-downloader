@@ -1,3 +1,7 @@
 node_modules/
 .env
 *.log
+
+# OCR test fixtures are generated on the fly by test/gen_fixtures.py
+test/fixtures/*.jpg
+test/fixtures/manifest.json

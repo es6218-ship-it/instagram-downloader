@@ -25,7 +25,16 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const NOTION_API_BASE = 'https://api.notion.com/v1';
 const TESSERACT = '/usr/bin/tesseract';
 const FFMPEG = '/usr/bin/ffmpeg';
-const OCR_LANGS = 'kor+eng+jpn';
+// 한국어 우선. jpn 언어팩은 한글 제목을 한자/가나로 오인식하는 경우가 많아 기본에서 제외.
+const OCR_LANGS = process.env.OCR_LANGS || 'kor+eng';
+// 오버레이 제목 텍스트의 한글 인식률을 높이기 위한 이미지 전처리 변형들.
+// 확대(lanczos) → 그레이스케일 → 대비/정규화 → 언샤프 순으로 적용한다.
+// 배경/대비 특성에 따라 잘 맞는 필터가 달라서 여러 변형을 만든 뒤 가장 좋은 결과를 고른다.
+const OCR_PREPROCESS_VARIANTS = [
+  "scale='min(1080,3*iw)':-1:flags=lanczos,format=gray,eq=contrast=1.8:brightness=0.02,unsharp=5:5:1.0",
+  "scale='min(1080,3*iw)':-1:flags=lanczos,format=gray,normalize,unsharp=5:5:1.0"
+];
+const OCR_PSM_MODES = [6, 4, 11, 3];
 
 const jobs = new Map();
 
@@ -114,6 +123,93 @@ async function downloadAllMedia(url, tmpDir) {
   return { items, meta };
 }
 
+async function preprocessForOcr(srcPath, outPath, variantFilter) {
+  await execFileAsync(FFMPEG, ['-y', '-i', srcPath, '-vf', variantFilter, outPath], EXEC_OPTS);
+}
+
+async function tesseractText(imgPath, psm) {
+  const { stdout } = await execFileAsync(
+    TESSERACT,
+    [imgPath, 'stdout', '-l', OCR_LANGS, '--oem', '1', '--psm', String(psm)],
+    EXEC_OPTS
+  );
+  return stdout;
+}
+
+// 한 줄(제목 후보)의 품질 점수. 한글 음절을 가장 높게 치고, 영숫자는 보통으로 친다.
+// 정체불명 기호(아이콘/이모지/배경 오인식 노이즈)가 하나라도 섞여 있거나,
+// 의미 있는 글자 수가 너무 적으면 아예 탈락시킨다(배경 텍스처 오인식 방지).
+// 여러 전처리·PSM 후보에서 나온 줄 중 진짜 제목 줄을 골라내는 데 쓴다.
+function scoreLine(line) {
+  if (!line || !line.trim()) return -Infinity;
+  const trimmed = line.trim();
+  const hangul = (trimmed.match(/[가-힣]/g) || []).length;
+  const alnum = (trimmed.match(/[a-zA-Z0-9]/g) || []).length;
+  const junk = (trimmed.match(/[^가-힣a-zA-Z0-9\s.,!?~%'"-]/g) || []).length;
+  const meaningful = hangul + alnum;
+  if (junk > 0) return -Infinity;
+  if (meaningful < 3) return -Infinity;
+  return hangul * 3 + alnum * 1;
+}
+
+// 한 후보(하나의 전처리+PSM 조합) 텍스트 안에서 노이즈 줄만 걸러내고
+// 진짜 제목으로 보이는 줄들은 원래 줄바꿈 순서 그대로 이어붙인다.
+// (여러 줄짜리 영어 제목 카드처럼, 좋은 줄이 여러 개인 경우를 온전히 보존하기 위함)
+function cleanCandidate(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const kept = lines.filter((l) => scoreLine(l) > 0);
+  if (kept.length === 0) return { text: null, score: -Infinity };
+  return {
+    text: kept.join('\n'),
+    score: kept.reduce((sum, l) => sum + scoreLine(l), 0)
+  };
+}
+
+function pickBestCandidate(candidateTexts) {
+  let best = null;
+  let bestScore = -Infinity;
+  for (const text of candidateTexts) {
+    const cleaned = cleanCandidate(text);
+    if (cleaned.text && cleaned.score > bestScore) {
+      bestScore = cleaned.score;
+      best = cleaned.text;
+    }
+  }
+  return best;
+}
+
+// 한 장의 이미지에서 큰 제목 텍스트를 뽑아낸다.
+// 여러 전처리 변형 x 여러 PSM 모드로 인식한 뒤, 그 중 가장 그럴듯한 후보(줄 묶음)를 고른다.
+async function ocrImage(imagePath, tmpDir) {
+  const preFiles = [];
+  const candidates = [];
+
+  try {
+    for (let i = 0; i < OCR_PREPROCESS_VARIANTS.length; i++) {
+      const outPath = path.join(tmpDir, `__ocr_pre_${i}_${Date.now()}.png`);
+      try {
+        await preprocessForOcr(imagePath, outPath, OCR_PREPROCESS_VARIANTS[i]);
+        preFiles.push(outPath);
+      } catch (_) {
+        continue;
+      }
+      for (const psm of OCR_PSM_MODES) {
+        try {
+          const text = await tesseractText(outPath, psm);
+          candidates.push(text);
+        } catch (_) {
+          // skip this psm/variant combo
+        }
+      }
+    }
+  } finally {
+    await Promise.all(preFiles.map((f) => fs.rm(f, { force: true }).catch(() => {})));
+  }
+
+  if (candidates.length === 0) return null;
+  return pickBestCandidate(candidates);
+}
+
 async function extractOcrTitle(tmpDir, items) {
   if (!items || items.length === 0) return null;
   const first = items[0];
@@ -136,18 +232,7 @@ async function extractOcrTitle(tmpDir, items) {
   }
 
   try {
-    const { stdout } = await execFileAsync(
-      TESSERACT,
-      [ocrTargetPath, 'stdout', '-l', OCR_LANGS],
-      EXEC_OPTS
-    );
-    const cleaned = stdout
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length >= 2)
-      .join('\n')
-      .trim();
-    return cleaned || null;
+    return await ocrImage(ocrTargetPath, tmpDir);
   } catch (_) {
     return null;
   } finally {
@@ -316,6 +401,18 @@ app.post('/api/notion-save', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Instagram downloader running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Instagram downloader running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = {
+  app,
+  INSTAGRAM_URL_RE,
+  preprocessForOcr,
+  scoreLine,
+  pickBestCandidate,
+  ocrImage,
+  extractOcrTitle
+};

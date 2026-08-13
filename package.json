@@ -5,7 +5,9 @@
   "description": "Personal-use Instagram post/reel downloader (paste a link, get the file)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:gen": "python3 test/gen_fixtures.py",
+    "test": "node test/ocr_compare.js"
   },
   "dependencies": {
     "express": "^4.19.2"
