@@ -386,17 +386,19 @@ app.post('/api/notion-save', async (req, res) => {
       });
     }
 
-    const firstImage = (job.items || []).find((it) => it.type === 'image');
-    if (firstImage) {
+    const images = (job.items || []).filter((it) => it.type === 'image');
+    if (images.length > 0) {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
-      children.push({
-        object: 'block',
-        type: 'image',
-        image: {
-          type: 'external',
-          external: { url: `${baseUrl}/api/file/${jobId}/${encodeURIComponent(firstImage.filename)}` }
-        }
-      });
+      for (const image of images) {
+        children.push({
+          object: 'block',
+          type: 'image',
+          image: {
+            type: 'external',
+            external: { url: `${baseUrl}/api/file/${jobId}/${encodeURIComponent(image.filename)}` }
+          }
+        });
+      }
     }
 
     const notionRes = await fetch(`${NOTION_API_BASE}/pages`, {
