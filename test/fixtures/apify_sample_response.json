@@ -1,0 +1,48 @@
+[
+  {
+    "id": "sample_reel_qualifies",
+    "shortCode": "Cxxxxxx01",
+    "type": "Video",
+    "productType": "clips",
+    "url": "https://www.instagram.com/reel/Cxxxxxx01/",
+    "caption": "이 릴스는 필터 조건을 통과하는 샘플입니다 (좋아요 150,000 / 조회수 2,000,000)",
+    "likesCount": 150000,
+    "videoViewCount": 2000000,
+    "ownerUsername": "sample_account",
+    "timestamp": "2026-08-01T12:00:00.000Z"
+  },
+  {
+    "id": "sample_reel_fails",
+    "shortCode": "Cxxxxxx02",
+    "type": "Video",
+    "productType": "clips",
+    "url": "https://www.instagram.com/reel/Cxxxxxx02/",
+    "caption": "이 릴스는 조회수가 부족해 필터에서 탈락하는 샘플입니다",
+    "likesCount": 120000,
+    "videoViewCount": 500000,
+    "ownerUsername": "sample_account",
+    "timestamp": "2026-08-02T12:00:00.000Z"
+  },
+  {
+    "id": "sample_post_qualifies",
+    "shortCode": "Cxxxxxx03",
+    "type": "Image",
+    "productType": "feed",
+    "url": "https://www.instagram.com/p/Cxxxxxx03/",
+    "caption": "이 일반 게시물은 좋아요 조건만으로 통과하는 샘플입니다 (조회수는 추정치 사용)",
+    "likesCount": 110000,
+    "ownerUsername": "sample_account",
+    "timestamp": "2026-08-03T12:00:00.000Z"
+  },
+  {
+    "id": "sample_post_fails",
+    "shortCode": "Cxxxxxx04",
+    "type": "Image",
+    "productType": "feed",
+    "url": "https://www.instagram.com/p/Cxxxxxx04/",
+    "caption": "이 일반 게시물은 좋아요가 부족해 탈락하는 샘플입니다",
+    "likesCount": 5000,
+    "ownerUsername": "sample_account",
+    "timestamp": "2026-08-04T12:00:00.000Z"
+  }
+]

@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-13 - 바이럴 필터링 수집기 추가 (Apify → Notion, 무인 실행)
+- 상태: 성공 (수동 반영 — 사용자 직접 요청, Apify 계정/노션 DB는 아직 미설정 상태로 코드만 완성)
+- 변경 파일: scripts/collect_viral.js(신규), config/viral_collector.json(신규), data/.gitkeep(신규), test/fixtures/apify_sample_response.json(신규), README.md, .gitignore
+- 요약: 직접 스크래핑 대신 Apify Instagram Scraper API를 통해 설정된 계정/해시태그의 게시물을 가져와 필터링(릴스: 좋아요 10만+ AND 조회수 100만+ / 일반 게시물: 좋아요 10만+, 조회수는 좋아요×20 추정치)하고 전용 노션 데이터베이스(URL/계정/좋아요/조회수/조회수추정/캡션/게시일/수집일시/타입 속성)에 저장하는 독립 스크립트. data/viral_collected_ids.json으로 중복 수집 방지. Apify 응답 필드명은 액터 버전마다 다를 수 있어 normalizeItem()에서 여러 후보 키를 시도하도록 방어적으로 작성 — 실제 계정 없이도 --dry-run/--fixture 옵션으로 필터링·중복방지·Notion 저장 로직 전체를 샘플 데이터로 검증 가능. systemd timer(viral-collector.timer, OnUnitActiveSec=144min)로 하루 10회 무인 실행 등록·활성화 완료(재부팅 후에도 자동 재개), 로그는 /var/log/viral_collector.log, 실행 결과 요약은 Discord 웹훅으로 전송. 실제 등록 확인: systemctl list-timers로 다음 실행 예정 확인, 실제 서비스 1회 트리거되어 로그 파일 기록까지 정상 확인(현재는 APIFY_API_TOKEN 미설정으로 의도된 실패 — 사용자가 키 발급 후 정상 동작 예상).
+
 ## 2026-08-13 - 노션 저장 후 새 탭 자동 오픈 제거
 - 상태: 성공 (수동 반영 — 자율 에이전트 플랫폼 장애로 대신 직접 수정)
 - 변경 파일: public/index.html

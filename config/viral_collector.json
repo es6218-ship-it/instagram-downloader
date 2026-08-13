@@ -1,0 +1,12 @@
+{
+  "accounts": [],
+  "hashtags": [],
+  "resultsLimitPerTarget": 30,
+  "apifyActorId": "apify/instagram-scraper",
+  "thresholds": {
+    "reelLikes": 100000,
+    "reelViews": 1000000,
+    "postLikes": 100000
+  },
+  "estimatedViewsMultiplier": 20
+}
