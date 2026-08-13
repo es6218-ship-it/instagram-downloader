@@ -6,24 +6,18 @@
 <title>인스타 다운로더</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: #f5f5f7;
-    --card: #ffffff;
-    --text: #1c1c1e;
-    --muted: #6e6e73;
-    --accent: #d6249f;
+    color-scheme: dark;
+    --bg: #000000;
+    --card: #121214;
+    --surface: #1c1c1f;
+    --surface2: #252528;
+    --text: #f5f5f7;
+    --muted: #8e8e93;
+    --accent: #e1306c;
     --accent-grad: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
-    --border: #e5e5ea;
-    --error: #d70015;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1c1c1e;
-      --card: #2c2c2e;
-      --text: #f5f5f7;
-      --muted: #a1a1a6;
-      --border: #3a3a3c;
-    }
+    --border: #2c2c2f;
+    --error: #ff453a;
+    --ok: #32d74b;
   }
   * { box-sizing: border-box; }
   body {
@@ -40,14 +34,15 @@
   .card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: 24px;
     padding: 36px 28px;
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02) inset;
   }
   h1 {
-    font-size: 22px;
+    font-size: 23px;
+    letter-spacing: -0.02em;
     margin: 0 0 6px;
     background: var(--accent-grad);
     -webkit-background-clip: text;
@@ -72,38 +67,48 @@
     flex: 1;
     min-width: 0;
     padding: 14px 16px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--surface);
     color: var(--text);
     font-size: 15px;
+    transition: border-color 0.15s;
+  }
+  input[type="url"]::placeholder {
+    color: var(--muted);
   }
   input[type="url"]:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(225, 48, 108, 0.25);
   }
   #pasteBtn {
     flex: 0 0 auto;
     width: 52px;
     padding: 14px 0;
-    background: var(--text);
-    color: var(--card);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
     font-size: 18px;
   }
   button {
     padding: 14px;
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     background: var(--accent-grad);
     color: white;
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  button:active {
+    transform: scale(0.98);
   }
   button:disabled {
-    opacity: 0.6;
+    opacity: 0.45;
     cursor: not-allowed;
+    transform: none;
   }
   .status {
     margin-top: 16px;
@@ -111,7 +116,7 @@
     min-height: 20px;
   }
   .status.error { color: var(--error); }
-  .status.ok { color: #248a3d; }
+  .status.ok { color: var(--ok); }
   .preview {
     display: none;
     margin-top: 20px;
@@ -128,9 +133,10 @@
   }
   .gallery-item {
     position: relative;
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
-    background: var(--bg);
+    background: var(--surface);
+    border: 1px solid var(--border);
   }
   .gallery-item img, .gallery-item video {
     width: 100%;
@@ -146,7 +152,8 @@
     position: absolute;
     top: 6px;
     right: 6px;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
     color: white;
     font-size: 11px;
     padding: 2px 7px;
@@ -158,11 +165,9 @@
   }
   .save-btn {
     flex: 1;
-    background: var(--text);
-    color: var(--card);
   }
   .save-btn.secondary {
-    background: transparent;
+    background: var(--surface2);
     border: 1px solid var(--border);
     color: var(--text);
   }
