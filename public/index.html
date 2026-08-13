@@ -256,11 +256,39 @@
         throw new Error(prepData.error || `분석에 실패했습니다. (HTTP ${prepRes.status})`);
       }
 
-      const { jobId, items } = prepData;
+      const { jobId } = prepData;
+      currentJobId = jobId;
+
+      // 다운로드 자체는 서버에서 백그라운드로 진행된다(모바일 통신망에서 긴 요청 하나를
+      // 오래 붙잡고 있으면 응답 전에 연결이 끊기는 경우가 있어, 짧은 폴링으로 진행 확인).
+      let items = null;
+      const pollStartedAt = Date.now();
+      const POLL_TIMEOUT_MS = 120_000;
+      while (true) {
+        if (Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
+          throw new Error('다운로드가 너무 오래 걸립니다. 잠시 후 다시 시도해주세요.');
+        }
+        const statusRes = await fetch(`/api/status/${jobId}`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        const statusData = await statusRes.json().catch(() => ({}));
+        if (!statusRes.ok) {
+          throw new Error(statusData.error || `상태 확인에 실패했습니다. (HTTP ${statusRes.status})`);
+        }
+        if (statusData.status === 'error') {
+          throw new Error(statusData.error || '다운로드에 실패했습니다.');
+        }
+        if (statusData.status === 'done') {
+          items = statusData.items;
+          break;
+        }
+        submitBtn.textContent = '분석 중...';
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
       if (!items || items.length === 0) {
         throw new Error('다운로드할 사진/영상을 찾지 못했습니다.');
       }
-      currentJobId = jobId;
 
       gallery.className = 'gallery' + (items.length === 1 ? ' single' : '');
 

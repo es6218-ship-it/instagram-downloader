@@ -342,6 +342,10 @@ async function extractOcrTitle(tmpDir, items) {
   }
 }
 
+// /api/prepare는 즉시 jobId만 반환하고, 실제 다운로드(수십 초 걸릴 수 있음)는
+// 백그라운드에서 진행한다. 클라이언트는 /api/status/:jobId를 짧은 간격으로 폴링한다.
+// (긴 요청을 하나 붙잡고 있으면 일부 모바일 통신망에서 응답 전에 연결이 끊겨
+//  "무한 대기"처럼 보이는 문제가 있어, 매 요청을 짧게 유지하기 위한 구조.)
 app.post('/api/prepare', async (req, res) => {
   const url = (req.body && req.body.url || '').trim();
 
@@ -351,26 +355,57 @@ app.post('/api/prepare', async (req, res) => {
 
   const jobId = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), 'ig-dl-' + jobId);
+  const createdAt = Date.now();
   await fs.mkdir(tmpDir, { recursive: true });
 
-  try {
-    const { items, meta } = await downloadAllMedia(url, tmpDir);
+  jobs.set(jobId, { dir: tmpDir, createdAt, status: 'pending' });
+  res.json({ jobId });
 
-    if (items.length === 0) {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-      return res.status(502).json({ error: '다운로드할 수 있는 사진/영상을 찾지 못했습니다. 비공개 계정이거나 링크를 확인해주세요.' });
+  (async () => {
+    try {
+      const { items, meta } = await downloadAllMedia(url, tmpDir);
+
+      if (items.length === 0) {
+        await fs.rm(tmpDir, { recursive: true, force: true });
+        jobs.set(jobId, {
+          dir: tmpDir,
+          createdAt,
+          status: 'error',
+          error: '다운로드할 수 있는 사진/영상을 찾지 못했습니다. 비공개 계정이거나 링크를 확인해주세요.'
+        });
+        return;
+      }
+
+      const ocrTitle = await extractOcrTitle(tmpDir, items);
+      if (meta) meta.ocrTitle = ocrTitle;
+
+      jobs.set(jobId, { dir: tmpDir, createdAt, status: 'done', items, meta });
+    } catch (err) {
+      console.error(err.stderr || err.message);
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      jobs.set(jobId, {
+        dir: tmpDir,
+        createdAt,
+        status: 'error',
+        error: '다운로드에 실패했습니다. 링크를 확인하거나 잠시 후 다시 시도해주세요.'
+      });
     }
+  })();
+});
 
-    const ocrTitle = await extractOcrTitle(tmpDir, items);
-    if (meta) meta.ocrTitle = ocrTitle;
+app.get('/api/status/:jobId', (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: '작업을 찾을 수 없습니다.' });
 
-    jobs.set(jobId, { dir: tmpDir, createdAt: Date.now(), items, meta });
-    res.json({ jobId, items, caption: meta ? meta.description : null, ocrTitle });
-  } catch (err) {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-    console.error(err.stderr || err.message);
-    res.status(502).json({ error: '다운로드에 실패했습니다. 링크를 확인하거나 잠시 후 다시 시도해주세요.' });
-  }
+  if (job.status === 'pending') return res.json({ status: 'pending' });
+  if (job.status === 'error') return res.json({ status: 'error', error: job.error });
+
+  res.json({
+    status: 'done',
+    items: job.items,
+    caption: job.meta ? job.meta.description : null,
+    ocrTitle: job.meta ? job.meta.ocrTitle : null
+  });
 });
 
 app.get('/api/file/:jobId/:filename', async (req, res) => {
