@@ -112,7 +112,9 @@ const OCR_PREPROCESS_VARIANTS = [
   "scale='min(1080,3*iw)':-1:flags=lanczos,format=gray,eq=contrast=1.8:brightness=0.02,unsharp=5:5:1.0",
   "scale='min(1080,3*iw)':-1:flags=lanczos,format=gray,normalize,unsharp=5:5:1.0"
 ];
-const OCR_PSM_MODES = [6, 4, 11, 3];
+// VPS 코어가 적어(2코어) 모드를 너무 많이 늘리면 느려지기만 하므로,
+// 오버레이 제목 텍스트에 실질적으로 잘 맞는 두 모드만 사용한다.
+const OCR_PSM_MODES = [6, 11];
 
 const jobs = new Map();
 
@@ -146,7 +148,10 @@ async function execWithRetry(cmd, args, opts, retries = 2, delayMs = 1500) {
 async function downloadAllMedia(url, tmpDir) {
   const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
 
-  await execWithRetry(
+  // 이 첫 번째 시도는 사진 게시물이면 "영상 없음"으로 정상적으로 실패하는 경우가
+  // 흔해서(재시도해도 소용없음) 여기는 재시도하지 않는다. 재시도는 아래 메타데이터/
+  // 썸네일 단계처럼 원래 성공해야 정상인 호출에만 적용한다.
+  await execFileAsync(
     YT_DLP,
     ['--no-playlist', '--ignore-no-formats-error', '-S', 'vcodec:h264', '-o', outputTemplate, url],
     EXEC_OPTS
@@ -281,35 +286,42 @@ function pickBestCandidate(candidateTexts) {
 }
 
 // 한 장의 이미지에서 큰 제목 텍스트를 뽑아낸다.
-// 여러 전처리 변형 x 여러 PSM 모드로 인식한 뒤, 그 중 가장 그럴듯한 후보(줄 묶음)를 고른다.
+// 여러 전처리 변형 x 여러 PSM 모드 조합을 전부 동시에(병렬로) 돌려서 지연을 줄이고,
+// 그 중 가장 그럴듯한 후보(줄 묶음)를 고른다.
 async function ocrImage(imagePath, tmpDir) {
   const preFiles = [];
-  const candidates = [];
 
   try {
-    for (let i = 0; i < OCR_PREPROCESS_VARIANTS.length; i++) {
-      const outPath = path.join(tmpDir, `__ocr_pre_${i}_${Date.now()}.png`);
-      try {
-        await preprocessForOcr(imagePath, outPath, OCR_PREPROCESS_VARIANTS[i]);
-        preFiles.push(outPath);
-      } catch (_) {
-        continue;
-      }
-      for (const psm of OCR_PSM_MODES) {
+    // 1) 전처리 변형들을 병렬로 생성
+    const preResults = await Promise.all(
+      OCR_PREPROCESS_VARIANTS.map(async (variant, i) => {
+        const outPath = path.join(tmpDir, `__ocr_pre_${i}_${Date.now()}.png`);
         try {
-          const text = await tesseractText(outPath, psm);
-          candidates.push(text);
+          await preprocessForOcr(imagePath, outPath, variant);
+          return outPath;
         } catch (_) {
-          // skip this psm/variant combo
+          return null;
         }
+      })
+    );
+    const readyFiles = preResults.filter(Boolean);
+    preFiles.push(...readyFiles);
+
+    // 2) (전처리 결과 x PSM 모드) 조합 전부를 동시에 인식
+    const jobs = [];
+    for (const outPath of readyFiles) {
+      for (const psm of OCR_PSM_MODES) {
+        jobs.push(tesseractText(outPath, psm).catch(() => null));
       }
     }
+    const results = await Promise.all(jobs);
+    const candidates = results.filter(Boolean);
+
+    if (candidates.length === 0) return null;
+    return pickBestCandidate(candidates);
   } finally {
     await Promise.all(preFiles.map((f) => fs.rm(f, { force: true }).catch(() => {})));
   }
-
-  if (candidates.length === 0) return null;
-  return pickBestCandidate(candidates);
 }
 
 async function extractOcrTitle(tmpDir, items) {
