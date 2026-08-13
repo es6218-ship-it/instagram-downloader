@@ -64,7 +64,13 @@
     flex-direction: column;
     gap: 12px;
   }
+  .input-row {
+    display: flex;
+    gap: 8px;
+  }
   input[type="url"] {
+    flex: 1;
+    min-width: 0;
     padding: 14px 16px;
     border-radius: 12px;
     border: 1px solid var(--border);
@@ -75,6 +81,14 @@
   input[type="url"]:focus {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+  #pasteBtn {
+    flex: 0 0 auto;
+    width: 52px;
+    padding: 14px 0;
+    background: var(--text);
+    color: var(--card);
+    font-size: 18px;
   }
   button {
     padding: 14px;
@@ -165,7 +179,10 @@
     <h1>인스타 다운로더</h1>
     <p class="sub">게시물 또는 릴스 링크를 붙여넣으면 사진·영상을 전부 받아옵니다.</p>
     <form id="form">
-      <input type="url" id="url" placeholder="https://www.instagram.com/reel/..." required />
+      <div class="input-row">
+        <input type="url" id="url" placeholder="https://www.instagram.com/reel/..." required />
+        <button type="button" id="pasteBtn" title="붙여넣기">📋</button>
+      </div>
       <button type="submit" id="submitBtn">다운로드</button>
     </form>
     <div class="status" id="status"></div>
@@ -192,6 +209,7 @@
   const shareSaveBtn = document.getElementById('shareSaveBtn');
   const fileSaveBtn = document.getElementById('fileSaveBtn');
   const notionSaveBtn = document.getElementById('notionSaveBtn');
+  const pasteBtn = document.getElementById('pasteBtn');
 
   let currentFiles = [];
   let currentObjectUrls = [];
@@ -344,6 +362,20 @@
     } finally {
       notionSaveBtn.disabled = false;
       notionSaveBtn.textContent = '📝 캡션·본문 노션에 저장';
+    }
+  });
+
+  pasteBtn.addEventListener('click', async () => {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      setStatus('이 브라우저는 자동 붙여넣기를 지원하지 않습니다. 길게 눌러 직접 붙여넣어주세요.', 'error');
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      urlInput.value = text.trim();
+      urlInput.focus();
+    } catch (err) {
+      setStatus('클립보드 읽기 권한이 없습니다. 길게 눌러 직접 붙여넣어주세요.', 'error');
     }
   });
 </script>
