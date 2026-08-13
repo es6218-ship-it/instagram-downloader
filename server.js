@@ -118,14 +118,28 @@ const OCR_PSM_MODES = [6, 11];
 
 const jobs = new Map();
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [jobId, job] of jobs) {
-    if (now - job.createdAt > JOB_TTL_MS) {
-      fs.rm(job.dir, { recursive: true, force: true }).catch(() => {});
-      jobs.delete(jobId);
-    }
+// 만료된(TTL 지난) job의 임시 디렉토리를 지우고 jobs 맵에서도 제거한다.
+// 순수 판별 로직(어떤 job이 만료됐는지)과 실제 삭제를 분리해 테스트하기 쉽게 함.
+function findExpiredJobIds(jobsMap, now, ttlMs) {
+  const expired = [];
+  for (const [jobId, job] of jobsMap) {
+    if (now - job.createdAt > ttlMs) expired.push(jobId);
   }
+  return expired;
+}
+
+async function cleanupExpiredJobs(jobsMap = jobs, now = Date.now(), ttlMs = JOB_TTL_MS) {
+  const expiredIds = findExpiredJobIds(jobsMap, now, ttlMs);
+  for (const jobId of expiredIds) {
+    const job = jobsMap.get(jobId);
+    if (job) await fs.rm(job.dir, { recursive: true, force: true }).catch(() => {});
+    jobsMap.delete(jobId);
+  }
+  return expiredIds;
+}
+
+setInterval(() => {
+  cleanupExpiredJobs();
 }, 60_000);
 
 // yt-dlp 호출은 인스타그램 CDN/네트워크 쪽 일시적 오류(타임아웃, 일시적 429 등)로
@@ -577,5 +591,7 @@ module.exports = {
   scoreLine,
   pickBestCandidate,
   ocrImage,
-  extractOcrTitle
+  extractOcrTitle,
+  findExpiredJobIds,
+  cleanupExpiredJobs
 };

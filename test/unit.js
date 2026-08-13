@@ -2,11 +2,16 @@
 // node test/unit.js 로 직접 실행 (프레임워크 없이 assert 기반).
 
 const assert = require('assert');
+const fs = require('fs/promises');
+const os = require('os');
+const path = require('path');
 const {
   INSTAGRAM_URL_RE,
   execWithRetry,
   sortItems,
-  scoreLine
+  scoreLine,
+  findExpiredJobIds,
+  cleanupExpiredJobs
 } = require('../server.js');
 
 let passed = 0;
@@ -102,6 +107,35 @@ async function main() {
   });
   await test('기호가 섞인 노이즈 줄은 탈락한다', () => {
     assert.strictEqual(scoreLine('し K ) @'), -Infinity);
+  });
+
+  console.log('=== 만료된 작업 디렉토리 정리 (findExpiredJobIds / cleanupExpiredJobs) ===');
+  await test('TTL 지난 job만 만료로 판별한다', () => {
+    const now = 1_000_000;
+    const jobsMap = new Map([
+      ['old', { createdAt: now - 20 * 60 * 1000 }],
+      ['fresh', { createdAt: now - 1 * 60 * 1000 }]
+    ]);
+    const expired = findExpiredJobIds(jobsMap, now, 10 * 60 * 1000);
+    assert.deepStrictEqual(expired, ['old']);
+  });
+  await test('cleanupExpiredJobs가 실제로 디렉토리를 삭제하고 jobs 맵에서도 제거한다', async () => {
+    const now = Date.now();
+    const oldDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ig-cleanup-test-'));
+    const freshDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ig-cleanup-test-'));
+    const jobsMap = new Map([
+      ['old', { dir: oldDir, createdAt: now - 20 * 60 * 1000 }],
+      ['fresh', { dir: freshDir, createdAt: now }]
+    ]);
+
+    await cleanupExpiredJobs(jobsMap, now, 10 * 60 * 1000);
+
+    assert.strictEqual(jobsMap.has('old'), false);
+    assert.strictEqual(jobsMap.has('fresh'), true);
+    await assert.rejects(() => fs.access(oldDir), '만료된 job의 디렉토리가 실제로 삭제되어야 함');
+    await assert.doesNotReject(() => fs.access(freshDir), '만료되지 않은 job의 디렉토리는 남아있어야 함');
+
+    await fs.rm(freshDir, { recursive: true, force: true }).catch(() => {});
   });
 
   console.log(`\n${passed}개 통과, ${failed}개 실패`);
