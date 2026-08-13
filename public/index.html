@@ -338,8 +338,7 @@
       if (!res.ok) {
         throw new Error(data.error || `노션 저장에 실패했습니다. (HTTP ${res.status})`);
       }
-      setStatus('노션에 저장 완료!', 'ok');
-      if (data.url) window.open(data.url, '_blank');
+      setStatus('노션에 저장 완료! (데이터베이스에 추가됨)', 'ok');
     } catch (err) {
       setStatus('노션 저장 오류: ' + err.message, 'error');
     } finally {
