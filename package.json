@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "test:gen": "python3 test/gen_fixtures.py",
-    "test": "node test/ocr_compare.js"
+    "test:unit": "node test/unit.js",
+    "test:ocr": "node test/ocr_compare.js",
+    "test": "npm run test:unit && npm run test:ocr"
   },
   "dependencies": {
     "express": "^4.19.2"

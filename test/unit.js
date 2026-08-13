@@ -1,0 +1,111 @@
+// 기본 유닛 테스트 — 외부 네트워크/yt-dlp 없이 순수 로직만 검증한다.
+// node test/unit.js 로 직접 실행 (프레임워크 없이 assert 기반).
+
+const assert = require('assert');
+const {
+  INSTAGRAM_URL_RE,
+  execWithRetry,
+  sortItems,
+  scoreLine
+} = require('../server.js');
+
+let passed = 0;
+let failed = 0;
+
+function test(name, fn) {
+  return Promise.resolve()
+    .then(fn)
+    .then(() => {
+      console.log(`  ✓ ${name}`);
+      passed++;
+    })
+    .catch((err) => {
+      console.log(`  ✗ ${name}`);
+      console.log(`    ${err.message}`);
+      failed++;
+    });
+}
+
+async function main() {
+  console.log('=== URL 검증 (INSTAGRAM_URL_RE) ===');
+  await test('릴스 링크를 허용한다', () => {
+    assert.ok(INSTAGRAM_URL_RE.test('https://www.instagram.com/reel/ABC123/'));
+  });
+  await test('게시물 링크를 허용한다', () => {
+    assert.ok(INSTAGRAM_URL_RE.test('https://instagram.com/p/ABC123'));
+  });
+  await test('IGTV 링크를 허용한다', () => {
+    assert.ok(INSTAGRAM_URL_RE.test('https://www.instagram.com/tv/ABC123/'));
+  });
+  await test('인스타그램이 아닌 링크는 거부한다', () => {
+    assert.strictEqual(INSTAGRAM_URL_RE.test('https://example.com/reel/ABC123'), false);
+  });
+  await test('http(비보안) 링크는 거부한다', () => {
+    assert.strictEqual(INSTAGRAM_URL_RE.test('http://www.instagram.com/reel/ABC123'), false);
+  });
+  await test('프로필 링크(경로 없음)는 거부한다', () => {
+    assert.strictEqual(INSTAGRAM_URL_RE.test('https://www.instagram.com/someuser/'), false);
+  });
+
+  console.log('=== 캐러셀 파일 순서 정렬 (sortItems) ===');
+  await test('orderIndex 순서를 그대로 따른다', () => {
+    const byId = new Map([
+      ['zzz', { filename: 'zzz.jpg', isVideo: false }],
+      ['aaa', { filename: 'aaa.jpg', isVideo: false }],
+      ['mmm', { filename: 'mmm.jpg', isVideo: false }]
+    ]);
+    const orderIndex = new Map([['zzz', 0], ['aaa', 1], ['mmm', 2]]);
+    const items = sortItems(byId, orderIndex);
+    assert.deepStrictEqual(items.map((i) => i.filename), ['zzz.jpg', 'aaa.jpg', 'mmm.jpg']);
+  });
+  await test('순서 정보가 없으면 파일명순으로 정렬한다', () => {
+    const byId = new Map([
+      ['b', { filename: 'b.jpg', isVideo: false }],
+      ['a', { filename: 'a.jpg', isVideo: false }]
+    ]);
+    const items = sortItems(byId, new Map());
+    assert.deepStrictEqual(items.map((i) => i.filename), ['a.jpg', 'b.jpg']);
+  });
+  await test('video/image 타입을 올바르게 반영한다', () => {
+    const byId = new Map([['a', { filename: 'a.mp4', isVideo: true }]]);
+    const items = sortItems(byId, new Map());
+    assert.strictEqual(items[0].type, 'video');
+  });
+
+  console.log('=== 재시도 로직 (execWithRetry) ===');
+  await test('계속 실패하는 커맨드는 재시도 소진 후 에러를 던진다', async () => {
+    await assert.rejects(() =>
+      execWithRetry('node', ['-e', 'process.exit(1)'], { timeout: 5000 }, 2, 50)
+    );
+  });
+  await test('모든 재시도 소진 후에는 에러를 던진다', async () => {
+    const start = Date.now();
+    await assert.rejects(() =>
+      execWithRetry('node', ['-e', 'process.exit(1)'], { timeout: 5000 }, 2, 20)
+    );
+    const elapsed = Date.now() - start;
+    // 재시도 2번 * 최소 delay(20,40ms)만큼은 걸려야 함(재시도가 실제로 일어났다는 방증)
+    assert.ok(elapsed >= 40, `재시도 지연이 반영되지 않은 것 같음 (elapsed=${elapsed}ms)`);
+  });
+  await test('성공하면 재시도 없이 바로 결과를 반환한다', async () => {
+    const { stdout } = await execWithRetry('node', ['-e', 'console.log("hi")'], { timeout: 5000 }, 2, 20);
+    assert.strictEqual(stdout.trim(), 'hi');
+  });
+
+  console.log('=== OCR 줄 점수 (scoreLine) ===');
+  await test('한글 줄은 양수 점수를 받는다', () => {
+    assert.ok(scoreLine('오늘의 추천 맛집') > 0);
+  });
+  await test('빈 줄/짧은 줄은 탈락한다', () => {
+    assert.strictEqual(scoreLine(''), -Infinity);
+    assert.strictEqual(scoreLine('ab'), -Infinity);
+  });
+  await test('기호가 섞인 노이즈 줄은 탈락한다', () => {
+    assert.strictEqual(scoreLine('し K ) @'), -Infinity);
+  });
+
+  console.log(`\n${passed}개 통과, ${failed}개 실패`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main();

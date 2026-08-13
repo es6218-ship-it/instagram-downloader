@@ -48,10 +48,27 @@ setInterval(() => {
   }
 }, 60_000);
 
+// yt-dlp 호출은 인스타그램 CDN/네트워크 쪽 일시적 오류(타임아웃, 일시적 429 등)로
+// 가끔 실패한다. 짧은 대기 후 몇 번 더 시도해서 이런 일시적 실패를 흡수한다.
+async function execWithRetry(cmd, args, opts, retries = 2, delayMs = 1500) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await execFileAsync(cmd, args, opts);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function downloadAllMedia(url, tmpDir) {
   const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
 
-  await execFileAsync(
+  await execWithRetry(
     YT_DLP,
     ['--no-playlist', '--ignore-no-formats-error', '-S', 'vcodec:h264', '-o', outputTemplate, url],
     EXEC_OPTS
@@ -60,7 +77,7 @@ async function downloadAllMedia(url, tmpDir) {
   let meta = null;
   const orderIndex = new Map();
   try {
-    const { stdout } = await execFileAsync(
+    const { stdout } = await execWithRetry(
       YT_DLP,
       ['--no-playlist', '--ignore-no-formats-error', '--skip-download', '-j', '-o', outputTemplate, url],
       EXEC_OPTS
@@ -85,7 +102,7 @@ async function downloadAllMedia(url, tmpDir) {
     // metadata is best-effort; ignore failures
   }
 
-  await execFileAsync(
+  await execWithRetry(
     YT_DLP,
     ['--no-playlist', '--ignore-no-formats-error', '--write-thumbnail', '--skip-download', '-o', outputTemplate, url],
     EXEC_OPTS
@@ -111,7 +128,16 @@ async function downloadAllMedia(url, tmpDir) {
     }
   }
 
-  const items = [...byId.entries()]
+  const items = sortItems(byId, orderIndex);
+
+  return { items, meta };
+}
+
+// byId: Map<id, {filename, isVideo}>, orderIndex: Map<id, originalCarouselPosition>.
+// 캐러셀 원래 순서(orderIndex)를 우선 따르고, 순서 정보가 없는 항목은 파일명으로 정렬한다.
+// downloadAllMedia에서 분리해 순수 함수로 유닛 테스트 가능하게 함.
+function sortItems(byId, orderIndex) {
+  return [...byId.entries()]
     .sort(([idA], [idB]) => {
       const rankA = orderIndex.has(idA) ? orderIndex.get(idA) : Infinity;
       const rankB = orderIndex.has(idB) ? orderIndex.get(idB) : Infinity;
@@ -119,8 +145,6 @@ async function downloadAllMedia(url, tmpDir) {
       return idA.localeCompare(idB);
     })
     .map(([, v]) => ({ filename: v.filename, type: v.isVideo ? 'video' : 'image' }));
-
-  return { items, meta };
 }
 
 async function preprocessForOcr(srcPath, outPath, variantFilter) {
@@ -410,6 +434,8 @@ if (require.main === module) {
 module.exports = {
   app,
   INSTAGRAM_URL_RE,
+  execWithRetry,
+  sortItems,
   preprocessForOcr,
   scoreLine,
   pickBestCandidate,
