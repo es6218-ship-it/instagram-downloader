@@ -9,8 +9,86 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SITE_PASSWORD = process.env.SITE_PASSWORD || null;
+const AUTH_COOKIE = 'ig_auth';
+const authToken = SITE_PASSWORD
+  ? crypto.createHash('sha256').update(SITE_PASSWORD).digest('hex')
+  : null;
 
 app.use(express.json());
+
+// 간단한 비밀번호 게이트. SITE_PASSWORD가 설정되어 있지 않으면(로컬 개발 등) 그냥 통과.
+function parseCookies(header) {
+  const out = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return out;
+}
+
+function isAuthed(req) {
+  if (!authToken) return true;
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies[AUTH_COOKIE] === authToken;
+}
+
+const LOGIN_PAGE = `<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>로그인</title>
+<style>
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#000; color:#f5f5f7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; padding:24px; }
+  .card { background:#121214; border:1px solid #2c2c2f; border-radius:24px; padding:36px 28px; width:100%; max-width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+  h1 { font-size:20px; margin:0 0 20px; }
+  input { width:100%; padding:14px 16px; border-radius:14px; border:1px solid #2c2c2f; background:#1c1c1f; color:#f5f5f7; font-size:15px; box-sizing:border-box; margin-bottom:12px; }
+  button { width:100%; padding:14px; border:none; border-radius:14px; background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); color:white; font-size:15px; font-weight:600; cursor:pointer; }
+  .err { color:#ff453a; font-size:13px; min-height:18px; margin-top:10px; }
+</style></head>
+<body>
+  <div class="card">
+    <h1>비밀번호를 입력하세요</h1>
+    <form id="f">
+      <input type="password" id="pw" placeholder="비밀번호" autofocus required />
+      <button type="submit">입장</button>
+    </form>
+    <div class="err" id="err"></div>
+  </div>
+  <script>
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: document.getElementById('pw').value })
+      });
+      if (res.ok) location.href = '/';
+      else document.getElementById('err').textContent = '비밀번호가 틀렸습니다.';
+    });
+  </script>
+</body></html>`;
+
+app.post('/login', (req, res) => {
+  const { password } = req.body || {};
+  if (!authToken || password !== SITE_PASSWORD) {
+    return res.status(401).json({ error: '비밀번호가 틀렸습니다.' });
+  }
+  res.setHeader(
+    'Set-Cookie',
+    `${AUTH_COOKIE}=${authToken}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`
+  );
+  res.json({ ok: true });
+});
+
+app.use((req, res, next) => {
+  if (isAuthed(req) || req.path === '/login') return next();
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: '로그인이 필요합니다.' });
+  }
+  res.status(401).send(LOGIN_PAGE);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const INSTAGRAM_URL_RE = /^https:\/\/(www\.)?instagram\.com\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+\/?/i;
