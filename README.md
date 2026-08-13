@@ -150,6 +150,7 @@ VIRAL_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...   # 없으면 DISCORD
 }
 ```
 
+- `accounts`/`hashtags`에는 순수 이름(`계정1`) 대신 인스타그램 링크(`https://www.instagram.com/계정1/`)나 `@계정1`/`#해시태그1` 형식을 그대로 붙여넣어도 됩니다 — 자동으로 이름만 추출합니다.
 - 릴스는 좋아요/조회수 실측치를 그대로 사용해 두 조건(`reelLikes` AND `reelViews`)을 모두 만족해야 통과합니다.
 - 일반 게시물(이미지/캐러셀)은 조회수가 비공개라 `postLikes` 기준만 보고, 통과 시 `좋아요 × estimatedViewsMultiplier`를 "조회수" 속성에 추정치로 기록하고 `조회수 추정` 체크박스를 켭니다.
 - 이미 수집한 게시물은 `data/viral_collected_ids.json`에 기록되어 다음 실행부터 자동으로 건너뜁니다.

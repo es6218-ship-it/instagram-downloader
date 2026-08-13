@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-13 - 바이럴 수집기 실전 검증 + 계정/해시태그에 링크 붙여넣기 지원
+- 상태: 성공 (수동 반영 — 사용자가 실제 Apify 토큰/노션 DB 값을 넣어준 뒤 진행)
+- 변경 파일: scripts/collect_viral.js, README.md
+- 요약: 사용자가 노션에서 "링크 복사"로 가져온 ID가 실제로는 데이터베이스를 담은 상위 페이지 ID였고, 수동으로 만든 속성 이름/타입도 요구사항과 달라서(예: `속성 이름`, `타입 선택`) 노션 API로 직접 검색해 진짜 데이터베이스 ID를 찾고 PATCH로 속성 9개(URL/계정/좋아요/조회수/조회수 추정/캡션/게시일/수집일시/타입)를 정확히 재설정. 이후 샘플 데이터 + 실제 Apify API(계정 kinetic_trigger) 양쪽으로 전체 파이프라인(필터링/노션 저장/중복방지/디스코드 알림)을 실전 검증 — 필드 매핑(likesCount/ownerUsername/caption/timestamp/url)이 실제 응답과 정확히 일치함을 확인. 테스트로 생성된 노션 페이지 2건은 정리(archive)하고 중복방지 기록도 초기화. 추가로 config/viral_collector.json의 accounts/hashtags에 순수 이름 대신 인스타그램 프로필/해시태그 링크나 `@`/`#` 접두사를 그대로 붙여넣어도 자동으로 이름만 추출하도록 extractHandle() 헬퍼 추가(아이패드에서 앱 공유 시트로 복사한 링크를 그대로 붙여넣을 수 있게).
+
 ## 2026-08-13 - 바이럴 필터링 수집기 추가 (Apify → Notion, 무인 실행)
 - 상태: 성공 (수동 반영 — 사용자 직접 요청, Apify 계정/노션 DB는 아직 미설정 상태로 코드만 완성)
 - 변경 파일: scripts/collect_viral.js(신규), config/viral_collector.json(신규), data/.gitkeep(신규), test/fixtures/apify_sample_response.json(신규), README.md, .gitignore

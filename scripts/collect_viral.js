@@ -77,6 +77,24 @@ async function runApifyActor(actorId, directUrls, resultsLimit) {
   return data;
 }
 
+// config에 순수 계정명/해시태그 대신 인스타그램 링크를 그대로 붙여넣어도 동작하도록
+// 정규화한다. "https://www.instagram.com/abc/", "@abc", "abc" 전부 "abc"로 통일.
+function extractHandle(input) {
+  let s = String(input).trim();
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const u = new URL(s);
+      const parts = u.pathname.split('/').filter(Boolean);
+      // /explore/tags/<tag>/ 형태의 해시태그 링크는 마지막 세그먼트가 태그명
+      if (parts[0] === 'explore' && parts[1] === 'tags' && parts[2]) return parts[2];
+      s = parts[0] || s;
+    } catch (_) {
+      // URL 파싱 실패 시 원본 문자열로 계속 진행
+    }
+  }
+  return s.replace(/^[@#]/, '').replace(/\/+$/, '');
+}
+
 function pick(obj, keys) {
   for (const k of keys) {
     if (obj[k] !== undefined && obj[k] !== null) return obj[k];
@@ -215,12 +233,14 @@ async function main() {
   const dedup = loadDedupStore();
 
   const targets = [
-    ...config.accounts.map((a) => ({ type: '계정', value: a, url: `https://www.instagram.com/${a}/` })),
-    ...config.hashtags.map((h) => ({
-      type: '해시태그',
-      value: h,
-      url: `https://www.instagram.com/explore/tags/${encodeURIComponent(h)}/`
-    }))
+    ...config.accounts.map((a) => {
+      const handle = extractHandle(a);
+      return { type: '계정', value: handle, url: `https://www.instagram.com/${handle}/` };
+    }),
+    ...config.hashtags.map((h) => {
+      const tag = extractHandle(h);
+      return { type: '해시태그', value: tag, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(tag)}/` };
+    })
   ];
 
   if (targets.length === 0 && !fixturePath) {
