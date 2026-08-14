@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - 바이럴 수집기 사용 중단 (Apify 비용 문제)
+- 상태: 성공 (수동 반영 — 사용자가 비용 부담으로 수집 자체를 하지 않기로 결정)
+- 변경 파일: docs/BACKLOG.md (시스템 변경: viral-collector.timer stop+disable, 코드/config는 삭제하지 않고 보존)
+- 요약: 월 $20 예산에 맞춰 스캔량을 줄인 직후, 사용자가 "그래도 비싸다"며 수집 기능 자체를 쓰지 않기로 결정. `systemctl stop viral-collector.timer && systemctl disable viral-collector.timer`로 완전히 중지 — 재부팅해도 다시 켜지지 않음. scripts/collect_viral.js, config/viral_collector.json 등 코드는 그대로 남겨둬서 나중에 마음이 바뀌면 `systemctl enable --now viral-collector.timer`로 바로 재개 가능.
+
 ## 2026-08-14 - 바이럴 수집기 Apify 비용 예산에 맞춰 스캔량 축소
 - 상태: 성공 (수동 반영 — 사용자가 무료 한도 초과 후 실제 지출 예산(월 $20) 제시)
 - 변경 파일: config/viral_collector.json, /etc/systemd/system/viral-collector.timer, README.md

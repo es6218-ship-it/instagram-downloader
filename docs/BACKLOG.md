@@ -15,7 +15,7 @@
 - [x] /api/prepare를 즉시응답+폴링 구조로 전환 (2026-08-13 수동 반영 완료 — 모바일 통신망에서 긴 요청이 중간에 끊기는 문제 해결)
 - [x] OCR 처리 속도 최적화 (2026-08-13 수동 반영 완료 — 사진 25초→15초, 릴스 10초)
 - [x] 다운로드 단계 yt-dlp 호출 병렬화 (2026-08-13 수동 반영 완료 — 다운로드 단계 6.5초→2.3초)
-- [x] 바이럴 필터링 수집기 추가 (Apify → Notion, 2026-08-13 수동 반영 완료 — 코드/systemd timer 등록 완료, APIFY_API_TOKEN/VIRAL_NOTION_DATABASE_ID는 사용자가 발급 후 .env에 입력 필요)
+- [x] 바이럴 필터링 수집기 추가 (Apify → Notion, 2026-08-13 수동 반영 완료 — 코드는 완성됐지만 2026-08-14 사용자가 Apify 비용 부담으로 사용 중단 결정. viral-collector.timer는 stop+disable 상태, 코드/config는 남겨둠 — 나중에 재개하려면 `systemctl enable --now viral-collector.timer`)
 
 - [x] 다운로드 완료 후 tmp 작업 디렉토리 자동 정리 (2026-08-13 클라우드 자율 에이전트 성공 — GitHub에 반영 안 돼 수동으로 동일하게 재적용 완료)
 - [x] "분석 중..." 폴링 상태에 진행 단계 표시 추가 (2026-08-14 클라우드 자율 에이전트 성공 — GitHub에 반영 안 돼 수동으로 동일하게 재적용 완료)
@@ -25,4 +25,4 @@
 - [ ] yt-dlp 자동 업데이트 systemd timer 추가 — 인스타그램이 내부 구조를 바꾸면 yt-dlp가 깨지는 일이 잦은데, 지금은 수동 업데이트 외에는 대응 방법이 없음. `pip install -U yt-dlp`(또는 `yt-dlp -U`)를 주 1회 실행하는 oneshot service + timer를 scripts/에 추가하고, 업데이트 성공/실패를 /var/log/에 기록. deploy-check.timer 패턴 참고.
 - [ ] Express 보안 헤더 추가 — 지금 응답에 X-Content-Type-Options, X-Frame-Options, Referrer-Policy 같은 기본 보안 헤더가 전혀 없음. 외부 패키지 없이 간단한 미들웨어로 추가(helmet 설치 없이 res.setHeader 몇 줄이면 충분). 헤더가 실제로 응답에 포함되는지 확인하는 테스트 추가.
 - [ ] /healthz 헬스체크 엔드포인트 추가 — 지금은 서비스가 죽었는지 systemd 상태 말고는 외부에서 확인할 방법이 없음. 인증 없이 접근 가능한 GET /healthz를 추가해 간단한 상태(uptime, yt-dlp/ffmpeg/tesseract 실행 가능 여부 등)를 JSON으로 반환. isPublicPath에도 포함.
-- [ ] viral_collector.log logrotate 설정 추가 — scripts/collect_viral.js가 하루 10회 실행되며 /var/log/viral_collector.log에 계속 append만 하고 있어 무한정 커질 수 있음. /etc/logrotate.d/에 설정 추가(예: 주 1회 로테이션, 4주 보관, 압축). 배포 스크립트나 문서에 설치 방법 기록.
+- [ ] viral_collector.log logrotate 설정 추가 (우선순위 낮음 — 2026-08-14 사용자가 Apify 비용 문제로 바이럴 수집기 사용을 중단해 당장 급하지 않음) — 나중에 다시 켤 경우를 대비해 /var/log/viral_collector.log가 무한정 커지지 않도록 /etc/logrotate.d/에 설정 추가(예: 주 1회 로테이션, 4주 보관, 압축).
