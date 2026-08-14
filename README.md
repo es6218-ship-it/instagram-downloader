@@ -139,7 +139,7 @@ VIRAL_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...   # 없으면 DISCORD
 {
   "accounts": ["계정1", "계정2"],
   "hashtags": ["해시태그1"],
-  "resultsLimitPerTarget": 30,
+  "resultsLimitPerTarget": 10,
   "apifyActorId": "apify/instagram-scraper",
   "thresholds": {
     "reelLikes": 100000,
@@ -154,6 +154,12 @@ VIRAL_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...   # 없으면 DISCORD
 - 릴스는 좋아요/조회수 실측치를 그대로 사용해 두 조건(`reelLikes` AND `reelViews`)을 모두 만족해야 통과합니다.
 - 일반 게시물(이미지/캐러셀)은 조회수가 비공개라 `postLikes` 기준만 보고, 통과 시 `좋아요 × estimatedViewsMultiplier`를 "조회수" 속성에 추정치로 기록하고 `조회수 추정` 체크박스를 켭니다.
 - 이미 수집한 게시물은 `data/viral_collected_ids.json`에 기록되어 다음 실행부터 자동으로 건너뜁니다.
+
+**비용 주의사항**: Apify는 "필터를 통과한 결과 수"가 아니라 **가져온 원본 게시물 수** 기준으로 과금합니다
+(Instagram Scraper 무료 등급 기준 결과 1건당 $0.0027). 즉 `resultsLimitPerTarget × (accounts+hashtags 개수) ×
+하루 실행 횟수`만큼 매일 청구됩니다. 예를 들어 계정 12개 × 10개씩 × 하루 2회 = 240건/일 ≈ 월 $19.4.
+계정 수/`resultsLimitPerTarget`/systemd 타이머 간격 중 하나라도 늘리면 비용이 그만큼 커지니, 바꾸기 전에
+[console.apify.com/billing](https://console.apify.com/billing)에서 이번 달 사용량을 먼저 확인하세요.
 
 ### 5. Apify 계정 없이 먼저 테스트하기
 
@@ -190,7 +196,7 @@ systemctl list-timers viral-collector.timer   # 다음 실행 시각 확인
 journalctl -u viral-collector.service -f      # 실행 로그 실시간 확인
 ```
 
-하루 10회, 144분(약 2.4시간) 간격으로 자동 실행되며(`/etc/systemd/system/viral-collector.timer`),
+하루 2회, 12시간 간격으로 자동 실행되며(`/etc/systemd/system/viral-collector.timer`),
 서버가 재부팅돼도 `enable` 상태라 자동으로 다시 켜집니다. 실행 로그는
 `/var/log/viral_collector.log`에 계속 쌓이고, 매 실행 결과 요약(수집/중복/필터탈락/실패
 건수)이 Discord 웹훅으로 전송됩니다.

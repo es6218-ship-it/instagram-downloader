@@ -1,7 +1,7 @@
 {
   "accounts": ["kinetic_trigger", "pubity", "a7reasons", "oddlyhorrifying", "brainnourishment", "historic", "evolving.ai", "underwater", "greatestreactions", "galaxies", "space_mystery.zip", "wasted"],
   "hashtags": [],
-  "resultsLimitPerTarget": 30,
+  "resultsLimitPerTarget": 10,
   "apifyActorId": "apify/instagram-scraper",
   "thresholds": {
     "reelLikes": 100000,

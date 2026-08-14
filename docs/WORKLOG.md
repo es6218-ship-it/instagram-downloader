@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - 바이럴 수집기 Apify 비용 예산에 맞춰 스캔량 축소
+- 상태: 성공 (수동 반영 — 사용자가 무료 한도 초과 후 실제 지출 예산(월 $20) 제시)
+- 변경 파일: config/viral_collector.json, /etc/systemd/system/viral-collector.timer, README.md
+- 요약: Apify Instagram Scraper 가격 정책을 API로 조회해 확인 — 필터 통과 결과가 아니라 "가져온 원본 게시물 수" 기준 과금(무료 등급 결과 1건당 $0.0027)이라는 걸 사용자에게 설명. 기존 설정(계정 12개 × resultsLimitPerTarget 30 × 하루 10회)은 월 약 $292로 계산돼 예산과 크게 어긋남을 확인. resultsLimitPerTarget을 30→10으로, systemd 타이머를 144분 간격(하루 10회)→12시간 간격(하루 2회)으로 낮춰 월 약 $19.4로 예산 안쪽에 맞춤(daemon-reload+재시작으로 실제 적용 확인). README에 비용 계산식과 계정 수/스캔량/실행 빈도를 늘리면 비용도 같이 늘어난다는 주의사항 추가. 단, 스캔량을 줄여도 실제로 필터 통과하는 "진짜 바이럴" 게시물 개수는 계정별 게시 빈도에 달려있어 보장되지 않는다는 점을 사용자에게 명확히 안내함.
+
 ## 2026-08-14 - yt-dlp 실패 사유별 에러 메시지 구체화
 - 상태: 성공 (클라우드 자율 에이전트가 네 번째로 실제 작업 성공 — 세션 cse_01YVYG9TtxFuoPdoTaAjgVKW, model=claude-fable-5, 22턴/198초, 커밋 3e40577, 유닛 31/31 통과. 이번에도 GitHub main에 반영되지 않음 — **5번 연속**. 다만 이번엔 라우틴 스스로 유력한 원인을 찾음: 세션의 git이 시작부터 `HEAD detached from refs/heads/main` 상태라 커밋이 어느 브랜치 ref에도 안 붙음 — 플랫폼의 "세션 브랜치를 자동으로 PR로 변환" 기능이 애초에 감지할 브랜치가 없는 셈. 로그를 참고해 수동으로 동일하게 재적용함)
 - 변경 파일: server.js, test/unit.js, docs/BACKLOG.md
