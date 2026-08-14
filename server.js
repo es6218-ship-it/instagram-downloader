@@ -165,6 +165,37 @@ async function execWithRetry(cmd, args, opts, retries = 2, delayMs = 1500) {
   throw lastErr;
 }
 
+// yt-dlp 실패 시 stderr 메시지를 대표 패턴 몇 가지로 분류해 사용자에게 보여줄
+// 한국어 에러 메시지를 고른다. 위에서부터 순서대로 검사하므로 더 구체적인 패턴을
+// 앞에 둔다. 인스타그램 추출기는 비공개/삭제/요청 제한을 하나의 문구
+// ("Requested content is not available, rate-limit reached or login required")로
+// 뭉뚱그리는 경우가 많아 완벽히 구분되지는 않지만, 흔한 케이스는 걸러낸다.
+function classifyDownloadError(stderrText) {
+  const text = (stderrText || '').toLowerCase();
+  if (!text) {
+    return { reason: 'unknown', message: '다운로드에 실패했습니다. 링크를 확인하거나 잠시 후 다시 시도해주세요.' };
+  }
+  if (/this account is private|private account/.test(text)) {
+    return { reason: 'private', message: '비공개 계정의 게시물입니다. 팔로우 중이 아니면 다운로드할 수 없습니다.' };
+  }
+  if (/404|not found|no longer available|has been removed|does not exist|unable to extract/.test(text)) {
+    return { reason: 'not_found', message: '게시물을 찾을 수 없습니다. 삭제되었거나 잘못된 링크일 수 있습니다.' };
+  }
+  if (/rate-limit|rate limit reached|login required|requested content is not available/.test(text)) {
+    return {
+      reason: 'restricted',
+      message: '인스타그램이 요청을 일시적으로 제한하고 있습니다(비공개 계정이거나 접근이 제한된 게시물일 수도 있음). 잠시 후 다시 시도해주세요.'
+    };
+  }
+  if (/unsupported url|no extractor found|is not a valid url/.test(text)) {
+    return { reason: 'unsupported_url', message: '지원하지 않는 형식의 링크입니다.' };
+  }
+  if (/timed out|timeout|etimedout|network|econnreset|enotfound|econnrefused/.test(text)) {
+    return { reason: 'network', message: '네트워크 오류로 다운로드에 실패했습니다. 잠시 후 다시 시도해주세요.' };
+  }
+  return { reason: 'unknown', message: '다운로드에 실패했습니다. 링크를 확인하거나 잠시 후 다시 시도해주세요.' };
+}
+
 async function downloadAllMedia(url, tmpDir) {
   const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
 
@@ -176,17 +207,22 @@ async function downloadAllMedia(url, tmpDir) {
   // 첫 번째 시도(영상 다운로드)는 사진 게시물이면 "영상 없음"으로 정상적으로
   // 실패하는 경우가 흔해서(재시도해도 소용없음) 재시도하지 않는다. 재시도는
   // 메타데이터/썸네일처럼 원래 성공해야 정상인 호출에만 적용한다.
+  // 실패 시 stderr는 버리지 않고 모아둔다 — 아무 파일도 못 받았을 때
+  // classifyDownloadError로 실패 사유를 구분하는 데 쓴다.
+  let videoErr = null;
+  let metadataErr = null;
+
   const videoAttemptPromise = execFileAsync(
     YT_DLP,
     ['--no-playlist', '--ignore-no-formats-error', '-S', 'vcodec:h264', '-o', outputTemplate, url],
     EXEC_OPTS
-  ).catch(() => {});
+  ).catch((e) => { videoErr = e; });
 
   const metadataPromise = execWithRetry(
     YT_DLP,
     ['--no-playlist', '--ignore-no-formats-error', '--skip-download', '-j', '-o', outputTemplate, url],
     EXEC_OPTS
-  ).catch(() => null);
+  ).catch((e) => { metadataErr = e; return null; });
 
   const thumbnailPromise = execWithRetry(
     YT_DLP,
@@ -243,7 +279,14 @@ async function downloadAllMedia(url, tmpDir) {
 
   const items = sortItems(byId, orderIndex);
 
-  return { items, meta };
+  // 메타데이터 쪽 에러가 인스타그램 응답 원문을 담고 있을 확률이 높아 앞에 둔다.
+  const errorOutput =
+    [metadataErr, videoErr]
+      .map((e) => e && (e.stderr || e.message))
+      .filter(Boolean)
+      .join('\n') || null;
+
+  return { items, meta, errorOutput };
 }
 
 // byId: Map<id, {filename, isVideo}>, orderIndex: Map<id, originalCarouselPosition>.
@@ -405,15 +448,21 @@ app.post('/api/prepare', async (req, res) => {
 
   (async () => {
     try {
-      const { items, meta } = await downloadAllMedia(url, tmpDir);
+      const { items, meta, errorOutput } = await downloadAllMedia(url, tmpDir);
 
       if (items.length === 0) {
         await fs.rm(tmpDir, { recursive: true, force: true });
+        // stderr 패턴으로 실패 사유를 구분해 더 구체적인 메시지를 보여준다.
+        // 사유를 못 알아낸 경우엔 기존 일반 메시지를 그대로 쓴다.
+        const classified = classifyDownloadError(errorOutput);
         jobs.set(jobId, {
           dir: tmpDir,
           createdAt,
           status: 'error',
-          error: '다운로드할 수 있는 사진/영상을 찾지 못했습니다. 비공개 계정이거나 링크를 확인해주세요.'
+          error:
+            classified.reason === 'unknown'
+              ? '다운로드할 수 있는 사진/영상을 찾지 못했습니다. 비공개 계정이거나 링크를 확인해주세요.'
+              : classified.message
         });
         return;
       }
@@ -433,7 +482,7 @@ app.post('/api/prepare', async (req, res) => {
         dir: tmpDir,
         createdAt,
         status: 'error',
-        error: '다운로드에 실패했습니다. 링크를 확인하거나 잠시 후 다시 시도해주세요.'
+        error: classifyDownloadError(err.stderr || err.message).message
       });
     }
   })();
@@ -597,6 +646,7 @@ module.exports = {
   jobs,
   INSTAGRAM_URL_RE,
   execWithRetry,
+  classifyDownloadError,
   sortItems,
   preprocessForOcr,
   scoreLine,

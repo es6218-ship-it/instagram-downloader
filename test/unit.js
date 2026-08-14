@@ -10,6 +10,7 @@ const {
   jobs,
   INSTAGRAM_URL_RE,
   execWithRetry,
+  classifyDownloadError,
   sortItems,
   scoreLine,
   findExpiredJobIds,
@@ -200,6 +201,39 @@ async function main() {
     assert.strictEqual(res1.status, 200);
     const res2 = await fetch(`${base}/icons/icon-192.png`);
     assert.strictEqual(res2.status, 200);
+  });
+
+  console.log('=== 다운로드 실패 사유 분류 (classifyDownloadError) ===');
+  await test('비공개 계정 메시지를 private으로 분류한다', () => {
+    const c = classifyDownloadError('ERROR: [Instagram] ABC123: This account is private');
+    assert.strictEqual(c.reason, 'private');
+  });
+  await test('삭제된 게시물 메시지를 not_found로 분류한다', () => {
+    const c = classifyDownloadError('ERROR: [Instagram] ABC123: content has been removed');
+    assert.strictEqual(c.reason, 'not_found');
+  });
+  await test('요청 제한 메시지를 restricted로 분류한다', () => {
+    const c = classifyDownloadError(
+      'ERROR: [Instagram] Requested content is not available, rate-limit reached or login required'
+    );
+    assert.strictEqual(c.reason, 'restricted');
+  });
+  await test('지원하지 않는 URL 메시지를 unsupported_url로 분류한다', () => {
+    const c = classifyDownloadError('ERROR: Unsupported URL: https://example.com/x');
+    assert.strictEqual(c.reason, 'unsupported_url');
+  });
+  await test('타임아웃/네트워크 메시지를 network로 분류한다', () => {
+    const c = classifyDownloadError('Error: connect ETIMEDOUT 1.2.3.4:443');
+    assert.strictEqual(c.reason, 'network');
+  });
+  await test('알 수 없는/빈 메시지는 unknown으로 분류한다', () => {
+    assert.strictEqual(classifyDownloadError('').reason, 'unknown');
+    assert.strictEqual(classifyDownloadError(null).reason, 'unknown');
+    assert.strictEqual(classifyDownloadError('뭔가 다른 이상한 에러').reason, 'unknown');
+  });
+  await test('각 사유마다 사람이 읽을 수 있는 한국어 메시지를 준다', () => {
+    const c = classifyDownloadError('This account is private');
+    assert.ok(c.message.includes('비공개'));
   });
 
   server.close();

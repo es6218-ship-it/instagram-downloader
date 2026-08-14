@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - yt-dlp 실패 사유별 에러 메시지 구체화
+- 상태: 성공 (클라우드 자율 에이전트가 네 번째로 실제 작업 성공 — 세션 cse_01YVYG9TtxFuoPdoTaAjgVKW, model=claude-fable-5, 22턴/198초, 커밋 3e40577, 유닛 31/31 통과. 이번에도 GitHub main에 반영되지 않음 — **5번 연속**. 다만 이번엔 라우틴 스스로 유력한 원인을 찾음: 세션의 git이 시작부터 `HEAD detached from refs/heads/main` 상태라 커밋이 어느 브랜치 ref에도 안 붙음 — 플랫폼의 "세션 브랜치를 자동으로 PR로 변환" 기능이 애초에 감지할 브랜치가 없는 셈. 로그를 참고해 수동으로 동일하게 재적용함)
+- 변경 파일: server.js, test/unit.js, docs/BACKLOG.md
+- 요약: classifyDownloadError(stderrText) 순수 함수 추가 — yt-dlp stderr를 private(비공개 계정)/not_found(삭제됨·404)/restricted(인스타그램의 rate-limit/login-required 뭉뚱그린 제한)/unsupported_url/network/unknown 6가지로 분류하고 사유별 한국어 안내 메시지 제공. downloadAllMedia가 영상 시도·메타데이터 호출 실패 시 stderr를 버리지 않고 errorOutput으로 모아 반환하도록 변경. /api/prepare의 두 실패 경로(파일 0개/예외)에서 분류된 메시지를 노출(사유 불명이면 기존 일반 메시지 유지). 테스트 7개 추가 — 총 31개 통과. 참고: 라우틴이 준 network 케이스 테스트("ETIMEDOUT")가 처음엔 정규식이 안 맞아 실패했는데, 로그에 정확한 정규식까지는 안 남아있어 직접 고침(timeout 패턴에 etimedout 추가).
+
 ## 2026-08-14 - 아이폰 홈 화면 PWA manifest + 아이콘 추가
 - 상태: 성공 (클라우드 자율 에이전트가 세 번째로 실제 작업 성공 — 세션 cse_01GqorK2gvRRHLcoNw8iALyk, model=claude-fable-5, 28턴/233초, 커밋 7616eea, 유닛 24/24 통과, 비밀번호 게이트 켠 실서버 curl로 검증까지 완료. 이번에도 GitHub main에 반영되지 않음 — **4번 연속** 같은 문제(모델 무관하게 재현). 로그의 설명/코드 스니펫을 참고해 수동으로 동일하게 재적용함)
 - 변경 파일: public/manifest.json(신규), public/icons/icon-192.png·icon-512.png·apple-touch-icon.png(신규), scripts/gen_icons.js(신규), public/index.html, server.js, test/unit.js
