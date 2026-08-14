@@ -13,7 +13,8 @@ const {
   sortItems,
   scoreLine,
   findExpiredJobIds,
-  cleanupExpiredJobs
+  cleanupExpiredJobs,
+  isPublicPath
 } = require('../server.js');
 
 let passed = 0;
@@ -160,6 +161,47 @@ async function main() {
     assert.strictEqual(data.step, null);
     jobs.delete('test-job-nostep');
   });
+  console.log('=== PWA (manifest / 아이콘 / 인증 예외 경로) ===');
+  await test('manifest.json이 유효하고 필수 필드를 갖고 있다', async () => {
+    const raw = await fs.readFile(path.join(__dirname, '..', 'public', 'manifest.json'), 'utf8');
+    const manifest = JSON.parse(raw);
+    assert.ok(manifest.name);
+    assert.ok(manifest.short_name);
+    assert.strictEqual(manifest.display, 'standalone');
+    assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 2);
+  });
+  await test('아이콘 PNG 파일이 존재하고 시그니처/크기가 올바르다', async () => {
+    const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    for (const [filename, size] of [
+      ['icon-192.png', 192],
+      ['icon-512.png', 512],
+      ['apple-touch-icon.png', 180]
+    ]) {
+      const buf = await fs.readFile(path.join(__dirname, '..', 'public', 'icons', filename));
+      assert.ok(buf.subarray(0, 8).equals(pngSig), `${filename}이 PNG 시그니처로 시작하지 않음`);
+      assert.strictEqual(buf.readUInt32BE(16), size, `${filename} width가 ${size}가 아님`);
+      assert.strictEqual(buf.readUInt32BE(20), size, `${filename} height가 ${size}가 아님`);
+    }
+  });
+  await test('index.html에 manifest/apple-touch-icon 링크가 있다', async () => {
+    const html = await fs.readFile(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    assert.ok(html.includes('rel="manifest"'));
+    assert.ok(html.includes('apple-touch-icon'));
+  });
+  await test('isPublicPath가 manifest/아이콘/로그인만 인증 예외로 허용한다', () => {
+    assert.strictEqual(isPublicPath('/manifest.json'), true);
+    assert.strictEqual(isPublicPath('/icons/icon-192.png'), true);
+    assert.strictEqual(isPublicPath('/login'), true);
+    assert.strictEqual(isPublicPath('/'), false);
+    assert.strictEqual(isPublicPath('/api/prepare'), false);
+  });
+  await test('테스트 서버에서 manifest/아이콘이 정적으로 서빙된다', async () => {
+    const res1 = await fetch(`${base}/manifest.json`);
+    assert.strictEqual(res1.status, 200);
+    const res2 = await fetch(`${base}/icons/icon-192.png`);
+    assert.strictEqual(res2.status, 200);
+  });
+
   server.close();
 
   console.log(`\n${passed}개 통과, ${failed}개 실패`);

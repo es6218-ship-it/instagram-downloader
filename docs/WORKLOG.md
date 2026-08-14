@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - 아이폰 홈 화면 PWA manifest + 아이콘 추가
+- 상태: 성공 (클라우드 자율 에이전트가 세 번째로 실제 작업 성공 — 세션 cse_01GqorK2gvRRHLcoNw8iALyk, model=claude-fable-5, 28턴/233초, 커밋 7616eea, 유닛 24/24 통과, 비밀번호 게이트 켠 실서버 curl로 검증까지 완료. 이번에도 GitHub main에 반영되지 않음 — **4번 연속** 같은 문제(모델 무관하게 재현). 로그의 설명/코드 스니펫을 참고해 수동으로 동일하게 재적용함)
+- 변경 파일: public/manifest.json(신규), public/icons/icon-192.png·icon-512.png·apple-touch-icon.png(신규), scripts/gen_icons.js(신규), public/index.html, server.js, test/unit.js
+- 요약: scripts/gen_icons.js — 외부 의존성 없이 순수 Node(zlib)로 PNG를 직접 인코딩(IHDR/IDAT/IEND 청크 + CRC32)해 인스타 그라디언트 배경에 흰색 다운로드 화살표 아이콘 3종(192/512/apple-touch 180) 생성. public/manifest.json 신규(standalone, 다크 테마, maskable). index.html에 manifest 링크 + apple-mobile-web-app 메타 태그 추가. server.js에 isPublicPath() 함수를 분리해 비밀번호 게이트에서 /manifest.json과 /icons/*만 예외 처리(iOS Safari가 쿠키 없이 이 리소스들을 가져가는 경우가 있어서). 테스트 5개 추가(manifest 유효성/아이콘 PNG 시그니처+크기/index.html 링크/isPublicPath 판별/정적 서빙) — 총 24개 통과. SITE_PASSWORD 켠 실제 서비스에 curl로 재검증: manifest·아이콘 200, 루트·API는 여전히 401.
+
 ## 2026-08-14 - "분석 중..." 폴링 상태에 진행 단계 표시 추가
 - 상태: 성공 (클라우드 자율 에이전트가 두 번째로 실제 작업 성공 — 세션 cse_01UDSADDgk1dMpN2z3Pi9xHs, model=claude-fable-5, ~9분 소요(도구 설치+OCR 테스트 포함), 커밋 af1c573, 유닛 20/20 + OCR 100% 통과. 이번에도 커밋이 GitHub main에 반영되지 않아 — 3번 연속 같은 문제 — 로그 설명을 참고해 수동으로 동일하게 재적용함)
 - 변경 파일: server.js, public/index.html, test/unit.js

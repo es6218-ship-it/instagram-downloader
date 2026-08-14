@@ -81,8 +81,14 @@ app.post('/login', (req, res) => {
   res.json({ ok: true });
 });
 
+// 인증 없이 접근 가능한 경로 — PWA manifest/아이콘은 브라우저(특히 iOS Safari)가
+// 쿠키 없이 가져가는 경우가 있어 게이트에서 제외한다(민감 정보 없음).
+function isPublicPath(p) {
+  return p === '/login' || p === '/manifest.json' || p.startsWith('/icons/');
+}
+
 app.use((req, res, next) => {
-  if (isAuthed(req) || req.path === '/login') return next();
+  if (isAuthed(req) || isPublicPath(req.path)) return next();
   if (req.path.startsWith('/api/')) {
     return res.status(401).json({ error: '로그인이 필요합니다.' });
   }
@@ -598,5 +604,6 @@ module.exports = {
   ocrImage,
   extractOcrTitle,
   findExpiredJobIds,
-  cleanupExpiredJobs
+  cleanupExpiredJobs,
+  isPublicPath
 };
