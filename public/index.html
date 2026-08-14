@@ -282,7 +282,8 @@
           items = statusData.items;
           break;
         }
-        submitBtn.textContent = '분석 중...';
+        // 서버가 알려주는 현재 진행 단계(예: "다운로드 중"/"OCR 처리 중")를 보여준다.
+        submitBtn.textContent = (statusData.step || '분석 중') + '...';
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 

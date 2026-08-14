@@ -6,6 +6,8 @@ const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
 const {
+  app,
+  jobs,
   INSTAGRAM_URL_RE,
   execWithRetry,
   sortItems,
@@ -137,6 +139,28 @@ async function main() {
 
     await fs.rm(freshDir, { recursive: true, force: true }).catch(() => {});
   });
+
+  console.log('=== 폴링 진행 단계 (/api/status/:jobId step 필드) ===');
+  // 실제 서버를 임시 포트에 띄우고 jobs 맵에 가짜 job을 넣어 status 응답을 검증한다.
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  await test('진행 중인 job은 step 필드를 그대로 반환한다', async () => {
+    jobs.set('test-job-step', { dir: '/tmp/does-not-matter', createdAt: Date.now(), status: 'pending', step: 'OCR 처리 중' });
+    const res = await fetch(`${base}/api/status/test-job-step`);
+    const data = await res.json();
+    assert.strictEqual(data.status, 'pending');
+    assert.strictEqual(data.step, 'OCR 처리 중');
+    jobs.delete('test-job-step');
+  });
+  await test('step이 없는 pending job은 step:null을 반환한다', async () => {
+    jobs.set('test-job-nostep', { dir: '/tmp/does-not-matter', createdAt: Date.now(), status: 'pending' });
+    const res = await fetch(`${base}/api/status/test-job-nostep`);
+    const data = await res.json();
+    assert.strictEqual(data.status, 'pending');
+    assert.strictEqual(data.step, null);
+    jobs.delete('test-job-nostep');
+  });
+  server.close();
 
   console.log(`\n${passed}개 통과, ${failed}개 실패`);
   process.exit(failed > 0 ? 1 : 0);

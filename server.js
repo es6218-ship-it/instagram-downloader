@@ -394,7 +394,7 @@ app.post('/api/prepare', async (req, res) => {
   const createdAt = Date.now();
   await fs.mkdir(tmpDir, { recursive: true });
 
-  jobs.set(jobId, { dir: tmpDir, createdAt, status: 'pending' });
+  jobs.set(jobId, { dir: tmpDir, createdAt, status: 'pending', step: '다운로드 중' });
   res.json({ jobId });
 
   (async () => {
@@ -411,6 +411,10 @@ app.post('/api/prepare', async (req, res) => {
         });
         return;
       }
+
+      // 다운로드가 끝나고 OCR로 넘어가는 시점에 진행 단계를 갱신한다.
+      // 폴링 중인 클라이언트가 "지금 뭘 하고 있는지"를 볼 수 있게 하기 위함.
+      jobs.set(jobId, { dir: tmpDir, createdAt, status: 'pending', step: 'OCR 처리 중' });
 
       const ocrTitle = await extractOcrTitle(tmpDir, items);
       if (meta) meta.ocrTitle = ocrTitle;
@@ -433,7 +437,7 @@ app.get('/api/status/:jobId', (req, res) => {
   const job = jobs.get(req.params.jobId);
   if (!job) return res.status(404).json({ error: '작업을 찾을 수 없습니다.' });
 
-  if (job.status === 'pending') return res.json({ status: 'pending' });
+  if (job.status === 'pending') return res.json({ status: 'pending', step: job.step || null });
   if (job.status === 'error') return res.json({ status: 'error', error: job.error });
 
   res.json({
@@ -584,6 +588,7 @@ if (require.main === module) {
 
 module.exports = {
   app,
+  jobs,
   INSTAGRAM_URL_RE,
   execWithRetry,
   sortItems,

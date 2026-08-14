@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - "분석 중..." 폴링 상태에 진행 단계 표시 추가
+- 상태: 성공 (클라우드 자율 에이전트가 두 번째로 실제 작업 성공 — 세션 cse_01UDSADDgk1dMpN2z3Pi9xHs, model=claude-fable-5, ~9분 소요(도구 설치+OCR 테스트 포함), 커밋 af1c573, 유닛 20/20 + OCR 100% 통과. 이번에도 커밋이 GitHub main에 반영되지 않아 — 3번 연속 같은 문제 — 로그 설명을 참고해 수동으로 동일하게 재적용함)
+- 변경 파일: server.js, public/index.html, test/unit.js
+- 요약: jobs 맵의 pending job에 step 필드("다운로드 중"/"OCR 처리 중")를 추가하고, GET /api/status/:jobId 응답에 그대로 포함시킴. 프론트엔드 폴링 루프에서 submitBtn 텍스트를 고정된 "분석 중..." 대신 서버가 보내주는 step 값으로 갱신. app/jobs를 모듈 export에 추가해 실제 서버를 임시 포트에 띄우고 status 응답을 검증하는 테스트 2개 추가(step 있음/없음 케이스). 참고: 자율 에이전트 세션의 디스코드 웹훅 전송은 이번에도 샌드박스 네트워크 정책(403 CONNECT tunnel)에 막힘 — 알려진 제약.
+
 ## 2026-08-13 - 다운로드 완료 후 tmp 작업 디렉토리 자동 정리
 - 상태: 성공 (클라우드 자율 에이전트가 처음으로 실제 작업 성공 — 세션 cse_01SbWVfnDhjeQN9E8uN9PV1q, turns=26, duration=113s. 단, 커밋이 세션 브랜치에만 남고 GitHub에 PR/브랜치로 반영되지 않는 문제가 재발해 동일 내용을 수동으로 다시 적용함)
 - 변경 파일: server.js, test/unit.js, docs/BACKLOG.md
