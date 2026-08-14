@@ -201,6 +201,22 @@ journalctl -u viral-collector.service -f      # 실행 로그 실시간 확인
 `/var/log/viral_collector.log`에 계속 쌓이고, 매 실행 결과 요약(수집/중복/필터탈락/실패
 건수)이 Discord 웹훅으로 전송됩니다.
 
+## yt-dlp 자동 업데이트 (systemd timer)
+
+인스타그램이 내부 구조를 바꾸면 yt-dlp가 깨지는 일이 잦아서, 주 1회 자동으로
+`pip install -U yt-dlp`를 실행하는 oneshot service + timer가 `scripts/`에 있습니다
+(pip 경로가 실패하면 `yt-dlp -U`로 폴백). 결과는 `/var/log/ytdlp_update.log`에
+기록되고, 버전이 실제로 바뀌었거나 업데이트에 실패했을 때만 Discord로 알립니다.
+
+설치:
+
+```bash
+cp scripts/ytdlp-update.service scripts/ytdlp-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now ytdlp-update.timer
+systemctl list-timers ytdlp-update.timer   # 다음 실행 시각 확인
+```
+
 ## 프로젝트 구조
 
 ```
@@ -209,6 +225,9 @@ public/index.html              # 프론트엔드 (단일 페이지, 바닐라 JS
 Caddyfile                      # 리버스 프록시 + 자동 HTTPS 설정 예시
 scripts/deploy_check.sh        # main 브랜치 변경 감지 시 자동 pull + 재시작 스크립트
 scripts/collect_viral.js       # 바이럴 필터링 수집기 (Apify → Notion, systemd timer로 무인 실행)
+scripts/update_ytdlp.sh        # yt-dlp 주 1회 자동 업데이트 스크립트 (ytdlp-update.timer가 실행)
+scripts/ytdlp-update.service   # 위 스크립트용 oneshot systemd 서비스 유닛
+scripts/ytdlp-update.timer     # 주 1회 실행 타이머
 config/viral_collector.json    # 수집 대상 계정/해시태그, 필터 기준 설정
 data/viral_collected_ids.json  # 수집기 중복 방지 기록 (git에는 포함 안 됨, 런타임 상태)
 docs/BACKLOG.md                 # 남은/진행 중 작업 목록

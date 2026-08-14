@@ -4,6 +4,11 @@
 
 <!-- 새 항목은 이 줄 아래에 추가 -->
 
+## 2026-08-14 - yt-dlp 자동 업데이트 systemd timer 추가
+- 상태: 성공 (클라우드 자율 에이전트가 다섯 번째로 실제 작업 성공 — 세션 cse_01SyLEKbbTq6WyuCyVoBoECz, model=claude-fable-5, 27턴/254초. 이번엔 지시대로 새 브랜치(auto/20260814-0343-ytdlp-update-timer)를 만들어 커밋(9a8b855)했지만 그래도 GitHub에 반영 안 됨. 이 직후 진단 세션(cse_01VydD2jGKuwmmtqi8nnoEqV)에서 원인 확정: Anthropic 에이전트 프록시가 GitHub 쓰기 경로 자체를 차단(403, "Write access to this GitHub API path is not permitted through this proxy") + GitHub 앱 통합에도 쓰기 권한 없음(403 Resource not accessible by integration). git push/gh pr create/GitHub MCP 쓰기 도구 전부 동일하게 막힘 — 플랫폼 정책상 세션 내에서 우회 불가능한 것으로 결론. 로그를 참고해 수동으로 동일하게 재적용함)
+- 변경 파일: scripts/update_ytdlp.sh(신규), scripts/ytdlp-update.service(신규), scripts/ytdlp-update.timer(신규), test/unit.js, README.md
+- 요약: 주 1회 `pip install -U yt-dlp` 실행(실패 시 `yt-dlp -U` 폴백)하는 update_ytdlp.sh와 그걸 실행하는 oneshot systemd 서비스+타이머(OnCalendar=weekly, Persistent=true, RandomizedDelaySec=1h) 추가. 결과는 /var/log/ytdlp_update.log에 기록, 버전이 실제로 바뀌었거나 실패했을 때만 Discord 웹훅 알림(deploy_check.sh와 동일 패턴). 테스트 5개 추가(유닛 파일 필수 지시자, bash 문법, 가짜 yt-dlp/pip 스텁으로 스크립트를 실제 실행하는 성공/최신유지/실패 3개 시나리오) — 총 36개 테스트 전부 통과. systemd 유닛은 `systemd-analyze verify`로 문법 검증만 하고, 실제 `systemctl enable --now`는 사용자 확인 후 별도 진행(새 상시 백그라운드 작업이라 코드 반영과 분리).
+
 ## 2026-08-14 - 바이럴 수집기 사용 중단 (Apify 비용 문제)
 - 상태: 성공 (수동 반영 — 사용자가 비용 부담으로 수집 자체를 하지 않기로 결정)
 - 변경 파일: docs/BACKLOG.md (시스템 변경: viral-collector.timer stop+disable, 코드/config는 삭제하지 않고 보존)

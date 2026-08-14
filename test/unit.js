@@ -238,6 +238,88 @@ async function main() {
 
   server.close();
 
+  console.log('=== yt-dlp 자동 업데이트 (scripts/update_ytdlp.sh + systemd 유닛) ===');
+  const { spawn } = require('child_process');
+  const scriptsDir = path.join(__dirname, '..', 'scripts');
+  const updateScript = path.join(scriptsDir, 'update_ytdlp.sh');
+
+  await test('systemd 서비스/타이머 유닛에 필수 지시자가 있다', async () => {
+    const service = await fs.readFile(path.join(scriptsDir, 'ytdlp-update.service'), 'utf8');
+    assert.ok(service.includes('ExecStart='));
+    assert.ok(service.includes('Type=oneshot'));
+    const timer = await fs.readFile(path.join(scriptsDir, 'ytdlp-update.timer'), 'utf8');
+    assert.ok(timer.includes('OnCalendar='));
+    assert.ok(timer.includes('WantedBy=timers.target'));
+  });
+
+  await test('update_ytdlp.sh는 bash 문법 오류가 없다', () =>
+    new Promise((resolve, reject) => {
+      const p = spawn('bash', ['-n', updateScript]);
+      let stderr = '';
+      p.stderr.on('data', (d) => (stderr += d));
+      p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr))));
+    })
+  );
+
+  // 아래 3개는 진짜 yt-dlp/pip 대신 가짜 실행 파일을 PATH 맨 앞에 꽂아
+  // update_ytdlp.sh를 실제로 실행해보는 통합 테스트다. 상태 파일로 "설치된 버전"을 흉내낸다.
+  async function runUpdateScript({ pipExit, versionAfterInstall }) {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ytdlp-update-test-'));
+    const stateFile = path.join(tmpDir, 'version.txt');
+    await fs.writeFile(stateFile, '2024.01.01\n');
+
+    const fakeYtdlp = path.join(tmpDir, 'yt-dlp');
+    await fs.writeFile(
+      fakeYtdlp,
+      `#!/bin/bash\nif [ "$1" = "--version" ]; then cat "${stateFile}"; exit 0; fi\nif [ "$1" = "-U" ]; then exit 1; fi\nexit 0\n`
+    );
+    await fs.chmod(fakeYtdlp, 0o755);
+
+    const fakePip = path.join(tmpDir, 'pip');
+    await fs.writeFile(
+      fakePip,
+      `#!/bin/bash\nif [ "$1" = "install" ]; then\n  if [ "${pipExit}" = "0" ]; then\n    echo "${versionAfterInstall}" > "${stateFile}"\n    exit 0\n  else\n    exit 1\n  fi\nfi\nexit 0\n`
+    );
+    await fs.chmod(fakePip, 0o755);
+
+    const logFile = path.join(tmpDir, 'update.log');
+
+    const exitCode = await new Promise((resolve) => {
+      const p = spawn('bash', [updateScript], {
+        env: {
+          ...process.env,
+          PATH: `${tmpDir}:${process.env.PATH}`,
+          YTDLP_UPDATE_BIN: fakeYtdlp,
+          YTDLP_UPDATE_LOG: logFile,
+          YTDLP_UPDATE_WEBHOOK: 'http://127.0.0.1:1/'
+        }
+      });
+      p.on('close', (code) => resolve(code));
+    });
+
+    const logContent = await fs.readFile(logFile, 'utf8').catch(() => '');
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    return { exitCode, logContent };
+  }
+
+  await test('pip 업데이트 성공(버전 변경) 시 성공 로그를 남기고 exit 0', async () => {
+    const { exitCode, logContent } = await runUpdateScript({ pipExit: '0', versionAfterInstall: '2024.02.01' });
+    assert.strictEqual(exitCode, 0);
+    assert.ok(logContent.includes('업데이트 성공'));
+  });
+
+  await test('이미 최신 버전이면 "이미 최신" 로그를 남기고 exit 0', async () => {
+    const { exitCode, logContent } = await runUpdateScript({ pipExit: '0', versionAfterInstall: '2024.01.01' });
+    assert.strictEqual(exitCode, 0);
+    assert.ok(logContent.includes('이미 최신'));
+  });
+
+  await test('pip/yt-dlp -U 둘 다 실패하면 실패 로그를 남기고 exit 1', async () => {
+    const { exitCode, logContent } = await runUpdateScript({ pipExit: '1', versionAfterInstall: '2024.02.01' });
+    assert.strictEqual(exitCode, 1);
+    assert.ok(logContent.includes('업데이트 실패'));
+  });
+
   console.log(`\n${passed}개 통과, ${failed}개 실패`);
   process.exit(failed > 0 ? 1 : 0);
 }

@@ -22,7 +22,7 @@
 - [x] 아이폰 홈 화면에 추가했을 때 앱처럼 보이게 PWA manifest 추가 (2026-08-14 클라우드 자율 에이전트 성공 — GitHub에 반영 안 돼 수동으로 동일하게 재적용 완료, 4번 연속 같은 문제)
 - [x] yt-dlp 실패 사유별 에러 메시지 구체화 (2026-08-14 클라우드 자율 에이전트 성공 — GitHub에 반영 안 돼 수동으로 동일하게 재적용 완료, 5번 연속 같은 문제. 이번엔 라우틴이 원인 단서까지 발견: 세션 git이 처음부터 detached HEAD 상태로 시작됨)
 
-- [ ] yt-dlp 자동 업데이트 systemd timer 추가 — 인스타그램이 내부 구조를 바꾸면 yt-dlp가 깨지는 일이 잦은데, 지금은 수동 업데이트 외에는 대응 방법이 없음. `pip install -U yt-dlp`(또는 `yt-dlp -U`)를 주 1회 실행하는 oneshot service + timer를 scripts/에 추가하고, 업데이트 성공/실패를 /var/log/에 기록. deploy-check.timer 패턴 참고.
+- [x] yt-dlp 자동 업데이트 systemd timer 추가 (2026-08-14 클라우드 자율 에이전트 성공 — 브랜치 auto/20260814-0343-ytdlp-update-timer, 커밋 9a8b855, GitHub 미반영으로 수동 재적용. systemd 등록은 사용자 확인 후 진행 예정, 코드/테스트는 완료)
 - [ ] Express 보안 헤더 추가 — 지금 응답에 X-Content-Type-Options, X-Frame-Options, Referrer-Policy 같은 기본 보안 헤더가 전혀 없음. 외부 패키지 없이 간단한 미들웨어로 추가(helmet 설치 없이 res.setHeader 몇 줄이면 충분). 헤더가 실제로 응답에 포함되는지 확인하는 테스트 추가.
 - [ ] /healthz 헬스체크 엔드포인트 추가 — 지금은 서비스가 죽었는지 systemd 상태 말고는 외부에서 확인할 방법이 없음. 인증 없이 접근 가능한 GET /healthz를 추가해 간단한 상태(uptime, yt-dlp/ffmpeg/tesseract 실행 가능 여부 등)를 JSON으로 반환. isPublicPath에도 포함.
 - [ ] viral_collector.log logrotate 설정 추가 (우선순위 낮음 — 2026-08-14 사용자가 Apify 비용 문제로 바이럴 수집기 사용을 중단해 당장 급하지 않음) — 나중에 다시 켤 경우를 대비해 /var/log/viral_collector.log가 무한정 커지지 않도록 /etc/logrotate.d/에 설정 추가(예: 주 1회 로테이션, 4주 보관, 압축).

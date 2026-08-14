@@ -1,0 +1,8 @@
+[Unit]
+Description=yt-dlp 자동 업데이트 (주 1회, ytdlp-update.timer가 트리거)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/instagram-downloader/scripts/update_ytdlp.sh
